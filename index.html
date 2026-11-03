@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="robots" content="noindex">
+<title>TV Market Dash player</title>
+<style>html, body, #p { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }</style>
+</head>
+<body>
+<div id="p"></div>
+<script>
+// A YouTube channel's live stream for TV Market Dash. YouTube's player refuses pages without a web address (an
+// installed TV app: Error 153), so the app shows this page, published on GitHub Pages, in a frame instead.
+// ?c=<channel id>&mute=1. The app sends {mute: true | false}; this page answers {yt: 'playing' | 'muted' | 'ended' |
+// 'error', code}. Plain ES5, as the TV's browser may be old.
+var c = (/[?&]c=(UC[\w-]{22})(&|$)/.exec(location.search) || [])[1], muted = /[?&]mute=1(&|$)/.test(location.search);
+var player = null, started = false;
+
+function tell(m) { if (parent !== window) parent.postMessage(m, '*'); }
+
+function onYouTubeIframeAPIReady() {
+  player = new YT.Player('p', {videoId: 'live_stream', width: '100%', height: '100%',
+    playerVars: {channel: c, autoplay: 1, controls: 0, disablekb: 1, rel: 0, playsinline: 1, iv_load_policy: 3, mute: muted ? 1 : 0},
+    events: {
+      onReady: function (e) {
+        if (muted) e.target.mute();
+        e.target.playVideo();
+        // A browser that won't start sound by itself: play without it, and say so.
+        setTimeout(function () { if (!started && !muted) { muted = true; e.target.mute(); e.target.playVideo(); tell({yt: 'muted'}); } }, 4000);
+      },
+      onStateChange: function (e) {
+        if (e.data === 1) { started = true; tell({yt: 'playing'}); }
+        else if (e.data === 0) tell({yt: 'ended'});
+      },
+      onError: function (e) { tell({yt: 'error', code: e.data}); }
+    }});
+}
+
+window.addEventListener('message', function (e) {
+  var d = e.data;
+  if (!player || !player.mute || !d || typeof d.mute !== 'boolean') return;
+  muted = d.mute;
+  if (muted) player.mute(); else { player.unMute(); player.setVolume(100); }
+});
+
+if (c) {
+  var s = document.createElement('script');
+  s.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(s);
+} else tell({yt: 'error', code: 'channel'});
+</script>
+</body>
+</html>
