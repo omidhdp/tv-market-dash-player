@@ -19,6 +19,11 @@ var player = null, started = false;
 
 function tell(m) { if (parent !== window) parent.postMessage(m, '*'); }
 
+function stateChanged(state) {
+  if (state === 1 && !started) { started = true; tell({yt: 'playing'}); }
+  else if (state === 0 && started) { started = false; tell({yt: 'ended'}); }
+}
+
 function onYouTubeIframeAPIReady() {
   player = new YT.Player('p', {videoId: 'live_stream', width: '100%', height: '100%',
     playerVars: {channel: c, autoplay: 1, controls: 0, disablekb: 1, rel: 0, playsinline: 1, iv_load_policy: 3, mute: muted ? 1 : 0},
@@ -28,11 +33,10 @@ function onYouTubeIframeAPIReady() {
         e.target.playVideo();
         // A browser that won't start sound by itself: play without it, and say so.
         setTimeout(function () { if (!started && !muted) { muted = true; e.target.mute(); e.target.playVideo(); tell({yt: 'muted'}); } }, 4000);
+        // The stream can start before the API listens, and then no state change comes: look every 2 s too.
+        setInterval(function () { stateChanged(e.target.getPlayerState()); }, 2000);
       },
-      onStateChange: function (e) {
-        if (e.data === 1) { started = true; tell({yt: 'playing'}); }
-        else if (e.data === 0) tell({yt: 'ended'});
-      },
+      onStateChange: function (e) { stateChanged(e.data); },
       onError: function (e) { tell({yt: 'error', code: e.data}); }
     }});
 }
